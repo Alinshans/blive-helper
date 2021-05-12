@@ -9,7 +9,7 @@ import zlib
 from collections import namedtuple
 from enum import IntEnum
 from typing import *
-
+from PyQt5.QtCore import pyqtSignal
 import aiohttp
 
 logger = logging.getLogger(__name__)
@@ -298,6 +298,10 @@ async def default_handler(command):
 
 class BLiveClient:
     _COMMAND_HANDLERS: Dict[str, Optional[Callable[['BLiveClient', dict], Awaitable]]] = {
+        # 开播
+        'LIVE': lambda client, command: client._on_live(command),
+        # 下播
+        'PREPARING': lambda client, command: client._on_preparing(command),
         # 收到弹幕
         'DANMU_MSG': lambda client, command: client._on_receive_danmaku(
             DanmakuMessage.from_command(command['info'])
@@ -321,7 +325,8 @@ class BLiveClient:
     }
 
     async def _default_handler(self, command):
-        print(command)
+        #print(command)
+        pass
 
     # 其他常见命令
     for cmd in (
@@ -330,10 +335,12 @@ class BLiveClient:
         'PANEL', 'SUPER_CHAT_MESSAGE_JPN', 'USER_TOAST_MSG', 'ROOM_BLOCK_MSG', 'LIVE', 'PREPARING',
         'room_admin_entrance', 'ROOM_ADMINS', 'ROOM_CHANGE', 'STOP_LIVE_ROOM_LIST'
     ):
-        _COMMAND_HANDLERS[cmd] = lambda client, command: client._default_handler(command)
+        if not _COMMAND_HANDLERS.__contains__(cmd):
+            _COMMAND_HANDLERS[cmd] = lambda client, command: client._default_handler(command)
     del cmd
 
-    def __init__(self, room_id, uid=0, session: aiohttp.ClientSession=None,
+    def __init__(self, room_id, signal: pyqtSignal,
+                 uid=0, session: aiohttp.ClientSession=None,
                  heartbeat_interval=30, ssl=True, loop=None):
         """
         :param room_id: URL中的房间ID，可以为短ID
@@ -344,6 +351,7 @@ class BLiveClient:
         :param loop: 协程事件循环
         """
 
+        self.signal = signal
         # 用来init_room的临时房间ID
         self._tmp_room_id = room_id
         # 调用init_room后初始化
@@ -642,6 +650,8 @@ class BLiveClient:
                 await self._handle_command(one_command)
             return
 
+        #print(type(command))
+        #print(command)
         cmd = command.get('cmd', '')
         pos = cmd.find(':')  # 2019-5-29 B站弹幕升级新增了参数
         if pos != -1:
@@ -654,6 +664,18 @@ class BLiveClient:
             logger.warning('room %d 未知命令：cmd=%s %s', self.room_id, cmd, command)
             # 只有第一次遇到未知命令时log
             self._COMMAND_HANDLERS[cmd] = None
+
+    async def _on_live(self, message):
+        """
+        开播了
+        """
+        pass
+
+    async def _on_preparing(self, message):
+        """
+        下播了
+        """
+        pass
 
     async def _on_receive_popularity(self, popularity: int):
         """
